@@ -3,13 +3,13 @@
     "version": "1",
     "name": "Mustard",
     "description": "Demo minting with backend notifications",
-    "iconUrl": "http://localhost:5174/icon.svg",
-    "homeUrl": "http://localhost:5174/",
-    "imageUrl": "http://localhost:5174/preview.svg",
+    "iconUrl": "https://crave-nephew-germless.ngrok-free.dev/icon.svg",
+    "homeUrl": "https://crave-nephew-germless.ngrok-free.dev/",
+    "imageUrl": "https://crave-nephew-germless.ngrok-free.dev/preview.svg",
     "buttonTitle": "Launch Mustard",
-    "splashImageUrl": "http://localhost:5174/preview.svg",
+    "splashImageUrl": "https://crave-nephew-germless.ngrok-free.dev/preview.svg",
     "splashBackgroundColor": "#fbbf24",
-    "webhookUrl": "http://localhost:3300/webhook",
+    "webhookUrl": "https://crave-nephew-germless.ngrok-free.dev/webhook",
     "primaryCategory": "entertainment",
     "tags": ["nft", "minting", "notifications", "demo", "backend"]
   }

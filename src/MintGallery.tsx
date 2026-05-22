@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { soneium } from "wagmi/chains";
 
 const NFT_CONTRACT = "0x7a181921b8976cE4a4997B134225d2E74E67797B" as const;
@@ -56,7 +56,9 @@ export function MintGallery({
     try {
       const saved = localStorage.getItem(`${storagePrefix}-nft-count-${address}`);
       return saved ? Number.parseInt(saved, 10) : 0;
-    } catch { return 0; }
+    } catch {
+      return 0;
+    }
   });
 
   // Sync: when on-chain balance loads, use the higher value
@@ -89,7 +91,9 @@ export function MintGallery({
     try {
       const saved = localStorage.getItem(`${storagePrefix}-last-mint-time`);
       return saved ? Number.parseInt(saved, 10) : null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   });
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
 
@@ -131,59 +135,47 @@ export function MintGallery({
   }, [isSuccess, address, storagePrefix, onMintSuccess]);
 
   const totalNfts = localCount;
-  const nftCount = totalNfts === 0 ? 0 : (totalNfts % 10 || 10);
+  const nftCount = totalNfts === 0 ? 0 : totalNfts % 10 || 10;
   const formatTime = (ms: number) => `${Math.ceil(ms / 1000)}s`;
 
   return (
-    <div style={{ marginBottom: '16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-        <button
-          type="button"
-          onClick={handleMint}
-          disabled={isPending || isConfirming || !canMint}
-        >
+    <div style={{ marginBottom: "16px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+        <button type="button" onClick={handleMint} disabled={isPending || isConfirming || !canMint}>
           {isPending || isConfirming ? "Minting..." : !canMint ? `Wait ${formatTime(timeRemaining)}` : "Mint NFT"}
         </button>
-        <span style={{ fontSize: '13px', fontWeight: '500' }}>
-          {totalNfts} minted
-        </span>
+        <span style={{ fontSize: "13px", fontWeight: "500" }}>{totalNfts} minted</span>
       </div>
 
-      {isSuccess && (
-        <div style={{ fontSize: '12px', marginTop: '8px' }}>
-          NFT minted successfully!
-        </div>
-      )}
+      {isSuccess && <div style={{ fontSize: "12px", marginTop: "8px" }}>NFT minted successfully!</div>}
 
-      {error && (
-        <div style={{ color: 'red', fontSize: '12px', marginTop: '8px' }}>
-          Error: {error.message}
-        </div>
-      )}
+      {error && <div style={{ color: "red", fontSize: "12px", marginTop: "8px" }}>Error: {error.message}</div>}
 
       {/* NFT Grid - 10 placeholders, 5 per row */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(5, 1fr)',
-        gap: '8px',
-        marginTop: '16px'
-      }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5, 1fr)",
+          gap: "8px",
+          marginTop: "16px",
+        }}
+      >
         {Array.from({ length: 10 }, (_, i) => `nft-${i}`).map((nftKey, index) => (
           <div
             key={nftKey}
             style={{
-              aspectRatio: '1',
-              borderRadius: '8px',
-              overflow: 'hidden',
-              backgroundColor: index < nftCount ? 'transparent' : emptySlotBg,
-              border: `2px solid ${index < nftCount ? 'transparent' : emptySlotBorder}`,
+              aspectRatio: "1",
+              borderRadius: "8px",
+              overflow: "hidden",
+              backgroundColor: index < nftCount ? "transparent" : emptySlotBg,
+              border: `2px solid ${index < nftCount ? "transparent" : emptySlotBorder}`,
             }}
           >
             {index < nftCount && tokenURI && (
               <img
                 src={tokenURI}
                 alt={`NFT ${index + 1}`}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
             )}
           </div>

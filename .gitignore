@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Env files - contain secrets (ngrok authtoken, etc.)
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -8,7 +8,7 @@ export const config = createConfig({
   // startaleApp connector for Mini App authentication
   connectors: [startaleConnector()],
   transports: {
-    [soneium.id]: http()
+    [soneium.id]: http(),
   },
 });
 

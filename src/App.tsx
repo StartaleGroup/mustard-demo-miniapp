@@ -1,21 +1,28 @@
 import { sdk } from "@farcaster/miniapp-sdk";
 import { useCallback, useEffect, useState } from "react";
-import { useConnection, useConnect, useConnectors, useDisconnect, useSignMessage } from "wagmi";
+import { useConnect, useConnection, useConnectors, useDisconnect, useSignMessage } from "wagmi";
 import { ContextSection } from "./ContextSection";
 import { MintGallery } from "./MintGallery";
 import { NotificationSection } from "./NotificationSection";
 
-const MUSTARD_BACKEND_URL = "http://localhost:3300";
+const MUSTARD_BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "";
 const MUSTARD_LOG_PREFIX = "[MUSTARD][mustard]";
 
 function SectionDivider({ title }: { title: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '20px 0 12px' }}>
-      <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-      <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.5)' }}>
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", margin: "20px 0 12px" }}>
+      <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(255,255,255,0.2)" }} />
+      <span
+        style={{
+          fontSize: "11px",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          color: "rgba(255,255,255,0.5)",
+        }}
+      >
         {title}
       </span>
-      <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
+      <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(255,255,255,0.2)" }} />
     </div>
   );
 }
@@ -26,8 +33,8 @@ function App() {
   }, []);
 
   return (
-    <div style={{ padding: '16px', maxWidth: '100%' }}>
-      <h1 style={{ textAlign: 'center', marginBottom: '24px', fontSize: '20px' }}>Mustard Mini App</h1>
+    <div style={{ padding: "16px", maxWidth: "100%" }}>
+      <h1 style={{ textAlign: "center", marginBottom: "24px", fontSize: "20px" }}>Mustard Mini App</h1>
       <ConnectMenu />
     </div>
   );
@@ -39,17 +46,17 @@ function ConnectMenu() {
   const { disconnect } = useDisconnect();
   const connectors = useConnectors();
   const [starPoints, setStarPoints] = useState<number | null>(null);
-  const [username, setUsername] = useState<string>('');
-  const [pfpUrl, setPfpUrl] = useState<string>('');
+  const [username, setUsername] = useState<string>("");
+  const [pfpUrl, setPfpUrl] = useState<string>("");
 
   // Get the Startale connector
-  const startaleConnector = connectors.find(c => c.name.toLowerCase() === 'startale');
+  const startaleConnector = connectors.find((c) => c.name.toLowerCase() === "startale");
 
   // Read context from sdk (async because of Comlink)
   useEffect(() => {
     (async () => {
       try {
-        const context = await sdk.context as {
+        const context = (await sdk.context) as {
           startale?: { starPoints?: number };
           user?: { username?: string; pfpUrl?: string };
         };
@@ -70,28 +77,28 @@ function ConnectMenu() {
 
   if (status === "connected") {
     return (
-      <div style={{ fontSize: '14px' }}>
+      <div style={{ fontSize: "14px" }}>
         <button
           type="button"
           onClick={() => disconnect()}
           style={{
-            marginBottom: '4px',
-            padding: '8px 16px',
-            backgroundColor: '#dc2626',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px',
+            marginBottom: "4px",
+            padding: "8px 16px",
+            backgroundColor: "#dc2626",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontSize: "14px",
           }}
         >
           Disconnect Wallet
         </button>
 
         <SectionDivider title="Wallet Info" />
-        <div style={{ marginBottom: '8px', fontWeight: '500' }}>Connected smart account:</div>
-        <div style={{ wordBreak: 'break-all', marginBottom: '12px', fontSize: '11px' }}>{address}</div>
-        <div style={{ marginBottom: '4px' }}>Chain: {chain?.name}</div>
+        <div style={{ marginBottom: "8px", fontWeight: "500" }}>Connected smart account:</div>
+        <div style={{ wordBreak: "break-all", marginBottom: "12px", fontSize: "11px" }}>{address}</div>
+        <div style={{ marginBottom: "4px" }}>Chain: {chain?.name}</div>
 
         <SectionDivider title="Context" />
         <ContextSection starPoints={starPoints} username={username} pfpUrl={pfpUrl} />
@@ -116,9 +123,9 @@ function ConnectMenu() {
   }
 
   return (
-    <div style={{ fontSize: '14px' }}>
-      <div style={{ marginBottom: '8px' }}>Status: {status}</div>
-      <div style={{ marginBottom: '8px' }}>Chain: {chain?.name}</div>
+    <div style={{ fontSize: "14px" }}>
+      <div style={{ marginBottom: "8px" }}>Status: {status}</div>
+      <div style={{ marginBottom: "8px" }}>Chain: {chain?.name}</div>
 
       {/* Use only Startale connector */}
       {startaleConnector ? (
@@ -129,29 +136,25 @@ function ConnectMenu() {
           }}
           disabled={status === "connecting"}
           style={{
-            padding: '12px 24px',
-            backgroundColor: '#92400e',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '500',
-            marginBottom: '12px',
+            padding: "12px 24px",
+            backgroundColor: "#92400e",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontSize: "14px",
+            fontWeight: "500",
+            marginBottom: "12px",
           }}
         >
           {status === "connecting" ? "Connecting..." : "Connect with Startale"}
         </button>
       ) : (
-        <div style={{ color: '#92400e', fontSize: '12px', marginBottom: '12px' }}>
-          Startale connector not found
-        </div>
+        <div style={{ color: "#92400e", fontSize: "12px", marginBottom: "12px" }}>Startale connector not found</div>
       )}
 
       {connectError && (
-        <div style={{ color: 'red', marginTop: '10px', fontSize: '12px' }}>
-          Error: {connectError.message}
-        </div>
+        <div style={{ color: "red", marginTop: "10px", fontSize: "12px" }}>Error: {connectError.message}</div>
       )}
     </div>
   );

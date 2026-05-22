@@ -8,6 +8,11 @@ app.use('*', cors())
 // Use env vars for Docker support, fallback to localhost for local dev
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5174'
 const PORT = Number(process.env.PORT || 3300)
+// Notification Server (Go NS) — base URL the miniapp posts notifications to
+// when it needs to deliver via NS instead of a per-token send URL handed in
+// by the host. Used by the manual-test fallback below; once NS implements
+// the `miniapp_added` webhook, this can be removed.
+const NS_BASE_URL = process.env.NOTIFS_API_BASE_URL || 'https://ns-sapp--dev-sapp.shygoat.xyz/api/v1'
 const LOG_PREFIX = '[MUSTARD]'
 
 // Notification details indexed by userAddress (received via webhook from host)
@@ -57,12 +62,44 @@ async function sendNotification(
   notifUrl: string,
   payload: { notificationId: string; title: string; body: string; targetUrl: string; tokens: string[] },
 ) {
+  const startedAt = Date.now()
   const response = await fetch(notifUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
+  const elapsedMs = Date.now() - startedAt
   const responseBody = await response.text()
+
+  // NS returns a JSON envelope: { successfulTokens, invalidTokens, rateLimitedTokens }.
+  // Parse defensively so callers see *which bucket* each input token landed in
+  // (a 200 with all tokens in `invalidTokens` is not a real delivery).
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(responseBody)
+  } catch {
+    parsed = undefined
+  }
+  const envelope =
+    parsed && typeof parsed === 'object'
+      ? (parsed as {
+          successfulTokens?: string[]
+          invalidTokens?: string[]
+          rateLimitedTokens?: string[]
+        })
+      : {}
+  const summary = {
+    status: response.status,
+    elapsedMs,
+    notificationId: payload.notificationId,
+    requestedTokens: payload.tokens.length,
+    successful: envelope.successfulTokens?.length ?? 0,
+    invalid: envelope.invalidTokens?.length ?? 0,
+    rateLimited: envelope.rateLimitedTokens?.length ?? 0,
+    rawBody: parsed ? undefined : responseBody.slice(0, 200),
+  }
+  console.log(`${LOG_PREFIX} [send] NS response`, summary)
+
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${responseBody}`)
   }
@@ -71,14 +108,26 @@ async function sendNotification(
 
 // Webhook endpoint - receives miniapp lifecycle events from host
 app.post('/webhook', async (c) => {
-  const body = await c.req.json() as {
+  const rawBody = await c.req.text()
+  console.log(`${LOG_PREFIX} [webhook] ===== incoming request =====`)
+  console.log(`${LOG_PREFIX} [webhook] method=${c.req.method} url=${c.req.url}`)
+  console.log(`${LOG_PREFIX} [webhook] headers=${JSON.stringify(Object.fromEntries(c.req.raw.headers.entries()))}`)
+  console.log(`${LOG_PREFIX} [webhook] query=${JSON.stringify(c.req.query())}`)
+  console.log(`${LOG_PREFIX} [webhook] raw body=${rawBody}`)
+
+  let body: {
     event?: string
     userAddress?: string
     notificationDetails?: { url: string; token: string }
+  } = {}
+  try {
+    body = rawBody ? JSON.parse(rawBody) : {}
+  } catch (err) {
+    console.log(`${LOG_PREFIX} [webhook] failed to parse body as JSON: ${err instanceof Error ? err.message : String(err)}`)
   }
   const normalizedUserAddress = body.userAddress ? normalizeUserAddress(body.userAddress) : undefined
 
-  console.log(`${LOG_PREFIX} [webhook] received event=${body.event}, userAddress=${body.userAddress}, body=${JSON.stringify(body).slice(0, 200)}`)
+  console.log(`${LOG_PREFIX} [webhook] parsed event=${body.event}, userAddress=${body.userAddress}`)
 
   if ((body.event === 'miniapp_added' || body.event === 'notifications_enabled') && body.notificationDetails && normalizedUserAddress) {
     tokensByAddress.set(normalizedUserAddress, body.notificationDetails)
@@ -158,18 +207,44 @@ app.post('/api/mint', async (c) => {
   return c.json({ success: true, scheduledFor })
 })
 
-// Test notification endpoint - called by frontend to send a test notification
+// Test notification endpoint - called by frontend to send a test notification.
+// Accepts an optional `fallbackToken` that the user pasted into the miniapp UI:
+// when no real token has arrived via the `/webhook` (which the host's new
+// Notification Server doesn't call yet), we route the notification through NS
+// directly using the pasted token. Once NS implements the miniapp_added
+// webhook, the fallback path becomes dead code and can be removed.
 app.post('/api/test-notification', async (c) => {
-  const body = await c.req.json() as { userAddress?: string }
+  const body = await c.req.json() as { userAddress?: string; fallbackToken?: string }
   const normalizedUserAddress = body.userAddress ? normalizeUserAddress(body.userAddress) : undefined
-  console.log(`${LOG_PREFIX} [test] received request, userAddress=${body.userAddress || "MISSING"}`)
+  const fallbackToken = typeof body.fallbackToken === 'string' && body.fallbackToken.length > 0
+    ? body.fallbackToken
+    : undefined
+  console.log(`${LOG_PREFIX} [test] received request, userAddress=${body.userAddress || "MISSING"}, hasFallbackToken=${Boolean(fallbackToken)}`)
 
   if (!normalizedUserAddress) {
     return c.json({ error: 'Missing userAddress' }, 400)
   }
 
+  // Resolve which send transport to use:
+  //  - Webhook token present → POST to the host-supplied `details.url` with
+  //    `details.token`. This is the production path (legacy host + future NS-
+  //    via-webhook).
+  //  - No webhook token but a fallback token was pasted → POST to NS's
+  //    `/notification` endpoint with the pasted token. Manual-test path.
+  //  - Neither → 404 as before.
   const details = tokensByAddress.get(normalizedUserAddress)
-  if (!details) {
+  let sendUrl: string
+  let sendToken: string
+  let usedFallback = false
+  if (details) {
+    sendUrl = details.url
+    sendToken = details.token
+  } else if (fallbackToken) {
+    sendUrl = `${NS_BASE_URL}/notification`
+    sendToken = fallbackToken
+    usedFallback = true
+    console.log(`${LOG_PREFIX} [test] using fallback token via NS at ${sendUrl}`)
+  } else {
     console.log(`${LOG_PREFIX} [test] no notification token found for address ${normalizedUserAddress}`)
     return c.json({ error: 'No notification registered for this address' }, 404)
   }
@@ -183,12 +258,12 @@ app.post('/api/test-notification', async (c) => {
       title: 'Mustard',
       body: notificationBody,
       targetUrl: FRONTEND_URL,
-      tokens: [details.token],
+      tokens: [sendToken],
     }
-    console.log(`${LOG_PREFIX} [test] sending test notification to`, details.url)
-    const result = await sendNotification(details.url, payload)
+    console.log(`${LOG_PREFIX} [test] sending test notification to ${sendUrl} (usedFallback=${usedFallback})`)
+    const result = await sendNotification(sendUrl, payload)
     console.log(`${LOG_PREFIX} [test] notification sent:`, result)
-    return c.json({ success: true })
+    return c.json({ success: true, usedFallback })
   } catch (e) {
     const errorMessage = e instanceof Error ? e.message : 'Failed to send notification'
     console.error(`${LOG_PREFIX} [test] failed to send notification:`, e)

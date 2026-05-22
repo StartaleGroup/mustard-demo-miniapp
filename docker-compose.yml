@@ -20,8 +20,18 @@ services:
       - PORT=3300
       # host.docker.internal lets containers reach services on the host machine
       - FARCASTER_HOST_URL=http://host.docker.internal:3200
-      - FRONTEND_URL=http://localhost:5174
+      - FRONTEND_URL=${PUBLIC_HOST}
     # Required for host.docker.internal on macOS/Windows (built-in)
     # For Linux, uncomment:
     # extra_hosts:
     #   - "host.docker.internal:host-gateway"
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    command: http frontend:5174 --url=https://${NGROK_DOMAIN}
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    depends_on:
+      - frontend
+    ports:
+      - "4040:4040"
