@@ -113,23 +113,6 @@ export function NotificationSection({ appName, accentColor, backendUrl, userAddr
     };
   }, [logEvent]);
 
-  const handleAddMiniApp = useCallback(async () => {
-    setError(null);
-    try {
-      console.log(`${logPrefix} handleAddMiniApp start`, { userAddress, backendUrl });
-      const result = await sdk.actions.addMiniApp();
-      console.log(`${logPrefix} handleAddMiniApp result`, {
-        userAddress,
-        hasNotificationDetails: Boolean(result.notificationDetails),
-        sendUrl: result.notificationDetails?.url,
-        tokenPreview: result.notificationDetails?.token ? tokenPreview(result.notificationDetails.token) : undefined,
-      });
-    } catch (e) {
-      console.error(`${logPrefix} Error in handleAddMiniApp:`, e);
-      setError(e instanceof Error ? e.message : "Failed to add mini app");
-    }
-  }, [backendUrl, logPrefix, userAddress]);
-
   const handleSend = useCallback(async () => {
     if (!userAddress) return;
     setSendState("sending");
@@ -193,21 +176,6 @@ export function NotificationSection({ appName, accentColor, backendUrl, userAddr
         </div>
       </div>
       <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-        <button
-          type="button"
-          onClick={handleAddMiniApp}
-          style={{
-            padding: "8px 16px",
-            backgroundColor: accentColor,
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontSize: "14px",
-          }}
-        >
-          Add MiniApp
-        </button>
         <button
           type="button"
           onClick={handleSend}

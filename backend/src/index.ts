@@ -43,6 +43,24 @@ let nextTestNotificationBodyIndex = 0
 // chars are what actually distinguish one token from another.
 const tokenPreview = (token: string) => `...${token.slice(-8)}`
 
+// NS response body echoes back full tokens in successful/invalid/rateLimited
+// arrays. Preview them so we never log full tokens.
+const previewNsResponseBody = (body: string) => {
+  try {
+    const parsed = JSON.parse(body)
+    const previewArray = (value: unknown) =>
+      Array.isArray(value) ? value.map((t) => (typeof t === 'string' ? tokenPreview(t) : t)) : value
+    return {
+      ...parsed,
+      successfulTokens: previewArray(parsed.successfulTokens),
+      invalidTokens: previewArray(parsed.invalidTokens),
+      rateLimitedTokens: previewArray(parsed.rateLimitedTokens),
+    }
+  } catch {
+    return body
+  }
+}
+
 const normalizeUserAddress = (userAddress: string) => userAddress.toLowerCase()
 
 const logTokenStore = (label: string) => {
@@ -81,7 +99,7 @@ async function sendNotification(
     status: response.status,
     elapsedMs,
     notificationId: payload.notificationId,
-    body: responseBody,
+    body: previewNsResponseBody(responseBody),
   })
 
   if (!response.ok) {
