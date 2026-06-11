@@ -2,7 +2,13 @@
 
 This guide explains how to wire a miniapp backend to the **Notification Server (NS)** so it can receive miniapp lifecycle events (a user added / removed the miniapp, enabled / disabled notifications).
 
-It ships with a single drop-in helper file — `src/ns-webhook.ts` — that handles JWKS fetching, JWS verification of the `x-user-address` header, JWS signature verification of the webhook body, and runtime narrowing of the payload union. Copy that file into your backend, install `jose`, and you're done.
+It ships with two drop-in helper files — `src/ns-webhook.ts` (parses and runtime-narrows the webhook payload) and `src/ns-webhook-verify.ts` (verifies the Svix Ed25519 signature). Copy both into your backend, call `verifyWebhookSignature()` before `parseWebhookPayload()`, and you're done. For a step-by-step reuse guide see [`NOTIFICATIONS_README.md`](./NOTIFICATIONS_README.md).
+
+> **Status — signing scheme live.** NS signs every webhook with the **Svix** scheme (Ed25519 over `svix-id`/`svix-timestamp`/`svix-signature` headers) and carries the user address in the JSON body (the old `x-user-address` header was removed).
+>
+> Signature verification is **implemented** in `src/ns-webhook-verify.ts` and enforced in `src/index.ts` — webhooks failing verification get a `401`. Set `NS_JWKS_URL` to enable it.
+>
+> **Persistence note:** Mustard stores tokens in an in-memory `Map` for demo simplicity. A real database is required for production — see [`NOTIFICATIONS_README.md`](./NOTIFICATIONS_README.md).
 
 ---
 
@@ -13,28 +19,37 @@ NS sends a POST to a webhook URL you register with the NS team. Each request loo
 ```http
 POST /your-webhook-path HTTP/1.1
 Content-Type: application/json
-x-user-address: <JWS over the user's address — see §2>
-X-Webhook-Signature: <JWS over the request body — see §2>
+svix-id: msg_1717245600000000000
+svix-timestamp: 1717245600
+svix-signature: v1,<base64-std Ed25519 signature — see §2>
+x-key-id: key-2
 
 {
   "event": "miniapp_added",
+  "senderId": "<sender / miniapp id>",
+  "userAddress": "0x1234...abcd",
   "notificationDetails": {
-    "url": "https://ns.example.com/notification",
+    "url": "https://ns.example.com/api/v1/miniapp/send-notification",
     "token": "<push token>"
   }
 }
 ```
 
+Every event now carries:
+
+- **`senderId`** — always present; identifies the subscription's sender (miniapp).
+- **`userAddress`** — the user's smart-account address, **in the body** (the old `x-user-address` header has been removed). May be omitted if NS could not resolve it.
+
 Four event types — two carry `notificationDetails`, two don't:
 
-| `event`                  | Body shape                                                      | When it fires                  |
-| ------------------------ | --------------------------------------------------------------- | ------------------------------ |
-| `miniapp_added`          | `{ event, notificationDetails: { url, token } }`                | User added the miniapp. **Store the token.** |
-| `notifications_enabled`  | `{ event, notificationDetails: { url, token } }` (new token)    | User re-enabled notifications. **Rotate the token.** |
-| `notifications_disabled` | `{ event }` only                                                | User toggled notifications off. **Stop sending.** |
-| `miniapp_removed`        | `{ event }` only                                                | User removed the miniapp. **Delete the token.** |
+| `event`                  | Body shape                                                                  | When it fires                  |
+| ------------------------ | --------------------------------------------------------------------------- | ------------------------------ |
+| `miniapp_added`          | `{ event, senderId, userAddress?, notificationDetails: { url, token } }`    | User added the miniapp. **Store the token.** |
+| `notifications_enabled`  | `{ event, senderId, userAddress?, notificationDetails: { url, token } }`    | User re-enabled notifications. **Rotate the token.** |
+| `notifications_disabled` | `{ event, senderId, userAddress? }`                                         | User toggled notifications off. **Stop sending.** |
+| `miniapp_removed`        | `{ event, senderId, userAddress? }`                                         | User removed the miniapp. **Delete the token.** |
 
-`notificationDetails.url` is the fully-qualified NS send-notification endpoint you POST to when delivering a push — use it verbatim, do not derive or rewrite it. `notificationDetails.token` is the per-user token to include in that POST. Store both together when you receive `miniapp_added` / `notifications_enabled`; either can change on a token rotation.
+`notificationDetails.url` is the fully-qualified NS send endpoint you POST to when delivering a push — use it verbatim, do not derive or rewrite it. (NS recently renamed this endpoint from `/notification` to `/miniapp/send-notification`; because you use the `url` verbatim, no code change is needed on your side.) `notificationDetails.token` is the per-user token to include in that POST. Store both together when you receive `miniapp_added` / `notifications_enabled`; either can change on a token rotation.
 
 Respond with **HTTP 200** on success. Anything else makes NS retry (confirm the exact retry policy with the NS team).
 
@@ -42,34 +57,44 @@ Respond with **HTTP 200** on success. Anything else makes NS retry (confirm the 
 
 ## 2. Signature format
 
-Both `x-user-address` and `X-Webhook-Signature` use the same NS signing key (look it up in the JWKS at `NS_JWKS_URL` by `kid`) and the same envelope: **JWS Compact Serialization** (`header.payload.signature`, base64url-encoded segments). The difference is what's signed:
+NS signs each webhook using the **Svix** scheme. Three headers carry the signature, plus `x-key-id` selects the key:
 
-- **`X-Webhook-Signature`** — signed payload is the marshaled JSON request body, verbatim. Verify by JWS-decoding the header and asserting the signed payload byte-matches the raw request body. Read the body as a raw string — re-serializing parsed JSON will not match.
-- **`x-user-address`** — signed payload is the user's smart-account address string. Not a JWT, no claims envelope: the JWS payload bytes *are* the address. Verify the JWS and use the decoded payload directly.
+- **`svix-id`** — unique message id (e.g. `msg_<unixnano>`).
+- **`svix-timestamp`** — unix seconds at send time.
+- **`svix-signature`** — `v1,<signature>` where `<signature>` is a **base64-standard** (not base64url) encoded raw **Ed25519** signature. Svix may emit multiple space-separated `scheme,sig` entries — accept the webhook if **any** verifies.
+- **`x-key-id`** — the `kid` of the NS JWKS key to verify against.
+
+The signed string is:
+
+```
+${svix-id}.${svix-timestamp}.${rawBody}
+```
+
+where `rawBody` is the exact bytes of the JSON request body. Verify by:
+
+1. Fetching the NS JWKS (`NS_JWKS_URL`) and selecting the Ed25519 key whose `kid` matches `x-key-id`.
+2. Reconstructing `toSign` from the three values above (read the body as a **raw string** — re-serializing parsed JSON will not byte-match).
+3. Verifying the raw Ed25519 signature over `toSign` with that public key.
+
+This is exactly what `src/ns-webhook-verify.ts`'s `verifyWebhookSignature()` does — it imports the JWKS key with `jose`'s `importJWK` and verifies with Node's built-in `crypto`. (Note: `jose` v6 `importJWK` returns a WebCrypto `CryptoKey`, which the helper converts via `KeyObject.from()` for `crypto.verify`.)
 
 What to ask the NS team:
 
-1. **`NS_JWKS_URL`** — the full URL of the NS JWKS endpoint (typically `https://<ns-host>/.well-known/jwks.json`). Needed up front since signature verification has to happen before you can trust anything in the webhook body.
+1. **`NS_JWKS_URL`** — the full URL of the NS JWKS endpoint (typically `https://<ns-host>/.well-known/jwks.json`). Required for signature verification.
 2. **Retry policy** on non-2xx responses (so you can size your idempotency window).
 
 ---
 
 ## 3. Install
 
-```bash
-npm install jose
-# or: pnpm add jose / yarn add jose
-```
+Copy `src/ns-webhook.ts` and `src/ns-webhook-verify.ts` from this repo into your backend's source tree.
 
-Copy `src/ns-webhook.ts` from this repo into your backend's source tree. The file has zero project-specific code — it imports only from `jose`.
-
-Set the env var:
+- `ns-webhook.ts` — pure TypeScript (JSON parse + narrow), no dependencies.
+- `ns-webhook-verify.ts` — Ed25519 verification using Node's built-in `crypto` plus `jose` (`importJWK`) for JWK import. The module is env-free; pass `{ jwksUrl }` in.
 
 ```bash
-NS_JWKS_URL=https://ns.example.com/.well-known/jwks.json   # ask the NS team for the real URL
+NS_JWKS_URL=https://ns.example.com/.well-known/jwks.json   # ask the NS team; required for signature verification
 ```
-
-The helper reads `process.env.NS_JWKS_URL` at module load and throws if it's missing. This is intentional — fail loud at boot rather than at first webhook.
 
 ---
 
@@ -78,46 +103,52 @@ The helper reads `process.env.NS_JWKS_URL` at module load and throws if it's mis
 Framework-agnostic example — adapt the request/response wiring to your framework:
 
 ```ts
-import {
-  NS_WEBHOOK_EVENTS,
-  decodeUserAddress,
-  parseWebhookPayload,
-  verifyWebhookSignature,
-} from './ns-webhook.js'
+import { NS_WEBHOOK_EVENTS, parseWebhookPayload } from './ns-webhook.js'
+import { verifyWebhookSignature } from './ns-webhook-verify.js'
 
-async function handleNsWebhook(rawBody: string, headers: Record<string, string | undefined>) {
-  // 1. Verify the signature against NS JWKS. Reject if invalid.
-  await verifyWebhookSignature(rawBody, headers['x-webhook-signature'])
+async function handleNsWebhook(rawBody: string, headers: SvixHeaders) {
+  // Verify the Svix signature first; throws (→ reject with 401) if invalid.
+  await verifyWebhookSignature(rawBody, headers, { jwksUrl: process.env.NS_JWKS_URL! })
 
-  // 2. Parse & narrow the body to a typed union.
+  // Parse & narrow the (now trusted) body to a typed union.
   const payload = parseWebhookPayload(rawBody)
 
-  // 3. Decode the signed x-user-address header to get the user's wallet address.
-  const userAddress = await decodeUserAddress(headers['x-user-address'])
+  // The user address is now in the body (no longer a header). May be absent.
+  const userAddress = payload.userAddress?.toLowerCase()
 
-  // 4. Branch on the event.
   switch (payload.event) {
     case NS_WEBHOOK_EVENTS.MINIAPP_ADDED:
     case NS_WEBHOOK_EVENTS.NOTIFICATIONS_ENABLED:
+      if (!userAddress) throw new Error('missing userAddress')
       // payload.notificationDetails is typed: { url, token }
       await saveToken(userAddress, payload.notificationDetails)
       break
     case NS_WEBHOOK_EVENTS.NOTIFICATIONS_DISABLED:
     case NS_WEBHOOK_EVENTS.MINIAPP_REMOVED:
-      await removeToken(userAddress)
+      if (userAddress) await removeToken(userAddress)
       break
   }
 }
 ```
 
-Hono example (matches this repo). Each verification step has its own try/catch so signature failures return `401` (auth) while malformed-body failures return `400` (bad request) — useful when reading NS retry logs:
+Hono example (matches this repo). A `401` signature gate runs before parsing; malformed bodies return `400`:
 
 ```ts
 app.post('/webhook', async (c) => {
   const rawBody = await c.req.text()
 
+  // Verify svix-id / svix-timestamp / svix-signature (+ x-key-id) → 401 on failure.
   try {
-    await verifyWebhookSignature(rawBody, c.req.header('x-webhook-signature'))
+    await verifyWebhookSignature(
+      rawBody,
+      {
+        svixId: c.req.header('svix-id'),
+        svixTimestamp: c.req.header('svix-timestamp'),
+        svixSignature: c.req.header('svix-signature'),
+        keyId: c.req.header('x-key-id'),
+      },
+      { jwksUrl: process.env.NS_JWKS_URL! },
+    )
   } catch (err) {
     return c.json({ success: false, error: 'invalid signature' }, 401)
   }
@@ -129,35 +160,13 @@ app.post('/webhook', async (c) => {
     return c.json({ success: false, error: 'invalid payload' }, 400)
   }
 
-  let userAddress: string
-  try {
-    userAddress = await decodeUserAddress(c.req.header('x-user-address'))
-  } catch (err) {
-    return c.json({ success: false, error: 'invalid x-user-address' }, 400)
-  }
-
+  const userAddress = payload.userAddress?.toLowerCase()
   // ...handle payload...
   return c.json({ success: true })
 })
 ```
 
-Express example:
-
-```ts
-app.post('/webhook', express.text({ type: '*/*' }), async (req, res) => {
-  try {
-    await verifyWebhookSignature(req.body, req.header('x-webhook-signature'))
-    const payload = parseWebhookPayload(req.body)
-    const userAddress = await decodeUserAddress(req.header('x-user-address'))
-    // ...handle payload...
-    res.status(200).json({ success: true })
-  } catch (err) {
-    res.status(400).json({ success: false })
-  }
-})
-```
-
-> **Important**: read the body as a **raw string**, not parsed JSON. `verifyWebhookSignature` needs the exact bytes that were signed — reserializing parsed JSON will not byte-match.
+> **Important**: read the body as a **raw string**, not parsed JSON. Verification needs the exact bytes that were signed — reserializing parsed JSON will not byte-match.
 
 ---
 
@@ -169,15 +178,15 @@ Parses the JSON body and narrows it to a typed discriminated union. Throws on:
 
 - invalid JSON
 - unknown `event`
+- missing or wrong-typed `senderId`
+- a present-but-non-string `userAddress`
 - missing or wrong-typed fields in `notificationDetails` (for `miniapp_added` / `notifications_enabled`)
 
-### `decodeUserAddress(headerValue: string | undefined): Promise<string>`
+### `verifyWebhookSignature(rawBody, headers, { jwksUrl }): Promise<void>`
 
-JWS-verifies the `x-user-address` header against NS JWKS and returns the signed payload (the address string) lowercased. The header is **not** a JWT — its signed payload is the raw address bytes. Throws on missing header, invalid signature, or empty payload.
+Lives in `ns-webhook-verify.ts`. Verifies the Svix Ed25519 signature; **call it before `parseWebhookPayload`**. Resolves on success, throws on any failure (missing headers, unknown `kid`, JWKS fetch error, or bad signature) — map a throw to a `401`. Reads no env vars; pass `jwksUrl` in.
 
-### `verifyWebhookSignature(rawBody: string, signatureHeader: string | undefined): Promise<void>`
-
-Verifies `X-Webhook-Signature` (JWS Compact Serialization) against NS JWKS and asserts that the signed payload matches `rawBody` byte-for-byte. Throws on any mismatch.
+> The former `x-user-address` header decoder is gone for good — the address is in the body now (`payload.userAddress`).
 
 ### Types & constants
 
@@ -190,10 +199,10 @@ NS_WEBHOOK_EVENTS.NOTIFICATIONS_DISABLED  // 'notifications_disabled'
 type NotificationDetails = { url: string; token: string }
 
 type NsWebhookPayload =
-  | { event: 'miniapp_added';          notificationDetails: NotificationDetails }
-  | { event: 'notifications_enabled';  notificationDetails: NotificationDetails }
-  | { event: 'miniapp_removed' }
-  | { event: 'notifications_disabled' }
+  | { event: 'miniapp_added';          senderId: string; userAddress?: string; notificationDetails: NotificationDetails }
+  | { event: 'notifications_enabled';  senderId: string; userAddress?: string; notificationDetails: NotificationDetails }
+  | { event: 'miniapp_removed';        senderId: string; userAddress?: string }
+  | { event: 'notifications_disabled'; senderId: string; userAddress?: string }
 ```
 
 ---
@@ -201,7 +210,7 @@ type NsWebhookPayload =
 ## 6. Response contract
 
 - **200**: webhook accepted. Use any `2xx` body (most teams use `{ "success": true }`).
-- **non-200**: NS will retry per its retry policy. Use `401` for signature failures and `400` for malformed-body / bad header failures, so permanent errors don't loop forever once the policy is honored — but **confirm the retry semantics with the NS team** before depending on this.
+- **non-200**: NS will retry per its retry policy. Use `400` for malformed-body failures and `401` for signature failures, so permanent errors don't loop forever once the policy is honored — but **confirm the retry semantics with the NS team** before depending on this.
 
 ---
 
@@ -209,17 +218,17 @@ type NsWebhookPayload =
 
 | Symptom | Likely cause |
 | ------- | ------------ |
-| `Failed to fetch JWKS` at boot | `NS_JWKS_URL` wrong or NS unreachable from your backend's egress. Curl `${NS_JWKS_URL}` from the backend host. |
-| `JWKSNoMatchingKey` on every request | NS rotated keys and the in-process JWKS cache is stale. `jose` refetches automatically on `kid` miss; if you still see this, check that your `x-user-address` and `X-Webhook-Signature` are actually signed by *this* NS instance and not a sibling. |
-| `x-user-address signed payload is empty` | The JWS verified but its payload had no bytes. Should never happen with a real NS request — confirm you're not stripping the header or passing a placeholder. |
-| `X-Webhook-Signature payload does not match request body` | Your framework parsed and re-serialized the body before handing it to `verifyWebhookSignature`. Read the raw body as a string. |
-| Tokens received but pushes never arrive | Unrelated to this webhook — check that you're calling the NS send-notification endpoint correctly with the token you stored. |
+| `senderId is not a string` | Body is from the old (pre-Svix) NS, or not an NS webhook at all. Confirm the NS instance sends the new payload shape. |
+| `missing userAddress` on add/enable | NS could not resolve the user's smart-account address. Check the NS → backend address lookup; the field is `omitzero` so it may be absent. |
+| Tokens received but pushes never arrive | Unrelated to this webhook — check that you're calling the NS send endpoint (`notificationDetails.url`) correctly with the token you stored. |
+| signature never verifies | Body was parsed/re-serialized before verification (read it raw), wrong `x-key-id` → key mapping, or base64url vs base64-standard decoding of the signature. |
+| `NS_JWKS_URL env var is required` / `server misconfigured` 500 | `NS_JWKS_URL` is unset. Set it to the NS JWKS endpoint. |
 
 ---
 
 ## 8. What's NOT covered here
 
-- **Sending notifications.** This guide is webhook-side only (NS → you). The send-side (you → NS to deliver a push) is a separate endpoint with its own contract — ask the NS team.
-- **Idempotency / dedupe.** If NS retries on transient errors, you may see the same event more than once. NS doesn't currently send a stable event ID — dedupe with `(userAddress, event, token)` if you care.
+- **Sending notifications.** This guide is webhook-side only (NS → you). The send side (you → NS to deliver a push) posts to `notificationDetails.url` — recently renamed to `/miniapp/send-notification` — with its own request contract; ask the NS team.
+- **Idempotency / dedupe.** NS now sends a stable `svix-id` per message — dedupe on that if you care about retries. `(userAddress, event, token)` also works.
 - **Rate limits.** NS may rate-limit your send side; webhook receive side typically isn't rate-limited.
-- **Local testing without NS.** If you want to test without a live NS, you can stand up a local JWKS server and sign test tokens with a matching private key. Out of scope for this guide.
+- **Local testing without NS.** Stand up a local JWKS server and sign test webhooks with a matching Ed25519 private key (mirror the `${id}.${ts}.${body}` signing string, base64-standard encode the signature). Useful for exercising `verifyWebhookSignature` without a live NS; otherwise out of scope for this guide.

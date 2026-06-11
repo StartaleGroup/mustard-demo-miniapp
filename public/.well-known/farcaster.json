@@ -1,16 +1,26 @@
 {
-  "miniapp": {
+  "frame": {
     "version": "1",
     "name": "Mustard",
     "description": "Demo minting with backend notifications",
-    "iconUrl": "https://crave-nephew-germless.ngrok-free.dev/icon.svg",
+    "iconUrl": "https://crave-nephew-germless.ngrok-free.dev/icon.webp",
     "homeUrl": "https://crave-nephew-germless.ngrok-free.dev/",
-    "imageUrl": "https://crave-nephew-germless.ngrok-free.dev/preview.svg",
+    "imageUrl": "https://crave-nephew-germless.ngrok-free.dev/preview.webp",
     "buttonTitle": "Launch Mustard",
-    "splashImageUrl": "https://crave-nephew-germless.ngrok-free.dev/preview.svg",
+    "splashImageUrl": "https://crave-nephew-germless.ngrok-free.dev/preview.webp",
     "splashBackgroundColor": "#fbbf24",
     "webhookUrl": "https://crave-nephew-germless.ngrok-free.dev/webhook",
     "primaryCategory": "entertainment",
     "tags": ["nft", "minting", "notifications", "demo", "backend"]
+  },
+    "startale": {
+    "manifestVersion": "2.3",
+    "featuredBannerImageUrl": "https://crave-nephew-germless.ngrok-free.dev/preview.webp",
+    "projectWebsite": "https://crave-nephew-germless.ngrok-free.dev/",
+    "socialLinks": {
+      "twitter": "https://x.com/yourapp",
+      "discord": "https://discord.gg/abc123"
+    },
+    "screenCompatibility": { "desktop": false, "landscapeOnly": false }
   }
 }
