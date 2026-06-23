@@ -5,10 +5,13 @@
 // with ns-webhook.ts (payload parsing). See ../NS_WEBHOOK.md and
 // ../NOTIFICATIONS_README.md.
 //
-// The scheme mirrors the NS signer exactly:
+// The scheme mirrors the Svix signer:
 //   toSign = `${svix-id}.${svix-timestamp}.${rawBody}`
-//   ed25519 signature, base64-STANDARD encoded, header `svix-signature: v1,<sig>`
-//   x-key-id selects the JWKS key (kty OKP, crv Ed25519, alg EdDSA).
+//   ed25519 signature, base64-STANDARD encoded, header `svix-signature: v1a,<sig>`.
+//   During a key rotation Svix signs with both the old and new keys for ~24h, so
+//   the header may carry multiple space-separated `v1a,<sig>` entries. We accept
+//   the webhook if ANY signature verifies against ANY key in the JWKS (kty OKP,
+//   crv Ed25519, alg EdDSA) — the per-key `kid` no longer selects a single key.
 
 import { importJWK } from 'jose'
 import { KeyObject, verify as cryptoVerify } from 'node:crypto'
@@ -17,7 +20,6 @@ export type SvixHeaders = {
   svixId?: string
   svixTimestamp?: string
   svixSignature?: string
-  keyId?: string
 }
 
 export type VerifyOptions = {
@@ -41,32 +43,33 @@ const fetchJwks = async (jwksUrl: string): Promise<Jwks> => {
   return jwks
 }
 
-const loadEd25519PublicKey = async (jwksUrl: string, kid: string): Promise<KeyObject> => {
-  let jwks = jwksCache.get(jwksUrl)
+// Load every usable Ed25519 public key from the JWKS. Svix signs with multiple
+// keys during rotation, so we verify against all of them rather than selecting
+// one by kid. forceRefresh bypasses the cache (used to pick up a just-rotated key).
+const loadEd25519PublicKeys = async (jwksUrl: string, forceRefresh = false): Promise<KeyObject[]> => {
+  let jwks = forceRefresh ? undefined : jwksCache.get(jwksUrl)
   if (jwks) {
     console.log(`[ns-webhook-verify] using cached JWKS for ${jwksUrl}`)
   } else {
     jwks = await fetchJwks(jwksUrl)
     jwksCache.set(jwksUrl, jwks)
   }
-  let jwk = jwks.keys.find((k) => k.kid === kid)
-  if (!jwk) {
-    // kid miss → refetch once (NS may have rotated keys).
-    console.log(`[ns-webhook-verify] kid "${kid}" not in cached JWKS, refetching once`)
-    jwks = await fetchJwks(jwksUrl)
-    jwksCache.set(jwksUrl, jwks)
-    jwk = jwks.keys.find((k) => k.kid === kid)
-  }
-  if (!jwk) throw new Error(`ns-webhook-verify: no JWKS key for kid "${kid}"`)
-  console.log(`[ns-webhook-verify] matched key for kid "${kid}"`)
 
-  // jose v6 returns a WebCrypto CryptoKey for OKP/Ed25519 (Uint8Array only for
-  // symmetric keys). crypto.verify wants a Node KeyObject, so convert.
-  const cryptoKey = await importJWK(jwk, 'EdDSA')
-  if (cryptoKey instanceof Uint8Array) {
-    throw new Error('ns-webhook-verify: expected an asymmetric Ed25519 key, got symmetric key material')
+  const keys: KeyObject[] = []
+  for (const jwk of jwks.keys) {
+    try {
+      // jose v6 returns a WebCrypto CryptoKey for OKP/Ed25519 (Uint8Array only
+      // for symmetric keys). crypto.verify wants a Node KeyObject, so convert.
+      const cryptoKey = await importJWK(jwk, 'EdDSA')
+      if (cryptoKey instanceof Uint8Array) continue // symmetric material — not a verify key
+      keys.push(KeyObject.from(cryptoKey))
+    } catch (err) {
+      // A single unimportable / non-Ed25519 key must not sink the whole batch.
+      console.log(`[ns-webhook-verify] skipping JWKS key kid="${jwk.kid}": ${(err as Error).message}`)
+    }
   }
-  return KeyObject.from(cryptoKey)
+  if (keys.length === 0) throw new Error('ns-webhook-verify: JWKS has no usable Ed25519 keys')
+  return keys
 }
 
 // Verifies the Svix Ed25519 signature. Throws on any failure.
@@ -77,30 +80,41 @@ export const verifyWebhookSignature = async (
   headers: SvixHeaders,
   { jwksUrl }: VerifyOptions,
 ): Promise<void> => {
-  const { svixId, svixTimestamp, svixSignature, keyId } = headers
-  if (!svixId || !svixTimestamp || !svixSignature || !keyId) {
-    throw new Error('ns-webhook-verify: missing one of svix-id / svix-timestamp / svix-signature / x-key-id')
+  const { svixId, svixTimestamp, svixSignature } = headers
+  if (!svixId || !svixTimestamp || !svixSignature) {
+    throw new Error('ns-webhook-verify: missing one of svix-id / svix-timestamp / svix-signature')
   }
 
-  const key = await loadEd25519PublicKey(jwksUrl, keyId)
   const toSign = Buffer.from(`${svixId}.${svixTimestamp}.${rawBody}`)
 
-  // svix-signature = "v1,<sig> v2,<sig> ..." — accept if any v1 entry verifies.
-  // Guard the sig part so a malformed comma-less entry ("v1") doesn't reach Buffer.from(undefined).
+  // svix-signature = "v1a,<sig> v1a,<sig> ..." — Svix emits multiple entries
+  // during the 24h key-rotation window. Accept if any v1a entry verifies.
+  // Guard the sig part so a malformed comma-less entry ("v1a") doesn't reach Buffer.from(undefined).
   const candidates = svixSignature
     .split(' ')
     .map((entry) => entry.split(','))
-    .filter(([scheme, sig]) => scheme === 'v1' && typeof sig === 'string' && sig.length > 0)
+    .filter(([scheme, sig]) => scheme === 'v1a' && typeof sig === 'string' && sig.length > 0)
     .map(([, sig]) => sig)
 
   if (candidates.length === 0) {
-    throw new Error('ns-webhook-verify: no v1 signature in svix-signature header')
+    throw new Error('ns-webhook-verify: no v1a signature in svix-signature header')
   }
 
-  for (const sig of candidates) {
-    const sigBytes = Buffer.from(sig, 'base64') // base64 STANDARD, not base64url
-    // Ed25519: algorithm arg is null; the key implies the digest.
-    if (cryptoVerify(null, toSign, key, sigBytes)) return
+  const sigBytesList = candidates.map((sig) => Buffer.from(sig, 'base64')) // base64 STANDARD, not base64url
+
+  // "Was any signature created with any of the JWKS keys?" — try every signature
+  // against every key. Ed25519: algorithm arg is null; the key implies the digest.
+  const tryVerify = (keys: KeyObject[]): boolean =>
+    sigBytesList.some((sigBytes) => keys.some((key) => cryptoVerify(null, toSign, key, sigBytes)))
+
+  // Refetch the JWKS once if nothing matches the cached keys (NS may have just
+  // rotated and published a new key) — only worthwhile if we were serving cache.
+  const wasCached = jwksCache.has(jwksUrl)
+  if (tryVerify(await loadEd25519PublicKeys(jwksUrl))) return
+
+  if (wasCached) {
+    console.log('[ns-webhook-verify] no signature matched cached JWKS, refetching once')
+    if (tryVerify(await loadEd25519PublicKeys(jwksUrl, true))) return
   }
 
   throw new Error('ns-webhook-verify: Svix signature verification failed')

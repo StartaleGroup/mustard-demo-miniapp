@@ -14,7 +14,8 @@ For the exact webhook contract (events, payload shapes, headers), see [`NS_WEBHO
 - **Receive** NS subscription lifecycle webhooks: a user added/removed the miniapp, or
   enabled/disabled notifications.
 - **Verify** each webhook's Svix Ed25519 signature against the NS JWKS, so forged or
-  tampered requests are rejected.
+  tampered requests are rejected. During a key rotation the header may carry multiple
+  signatures; the webhook is accepted if any one verifies against any JWKS key.
 - **Send** pushes back to NS using the per-user token NS hands you.
 
 ---
@@ -27,7 +28,7 @@ verifier reads no environment variables (you pass config in).
 | File | Responsibility |
 | ---- | -------------- |
 | [`src/ns-webhook.ts`](./src/ns-webhook.ts) | Parse the JSON body and narrow it to a typed event union. Throws on malformed input. |
-| [`src/ns-webhook-verify.ts`](./src/ns-webhook-verify.ts) | Verify the Svix Ed25519 signature against the NS JWKS (keyed by `x-key-id`). Throws on any failure. |
+| [`src/ns-webhook-verify.ts`](./src/ns-webhook-verify.ts) | Verify the Svix Ed25519 signature against the NS JWKS (any key matches). Throws on any failure. |
 
 ### Dependency
 
@@ -61,7 +62,7 @@ import { verifyWebhookSignature } from './ns-webhook-verify.js'
 const NS_JWKS_URL = process.env.NS_JWKS_URL!
 
 async function handleNsWebhook(rawBody: string, headers: {
-  svixId?: string; svixTimestamp?: string; svixSignature?: string; keyId?: string
+  svixId?: string; svixTimestamp?: string; svixSignature?: string
 }) {
   // 1. Verify FIRST — reject forged/tampered webhooks before parsing.
   await verifyWebhookSignature(rawBody, headers, { jwksUrl: NS_JWKS_URL }) // throws → respond 401
@@ -99,7 +100,6 @@ app.post('/webhook', async (c) => {
         svixId: c.req.header('svix-id'),
         svixTimestamp: c.req.header('svix-timestamp'),
         svixSignature: c.req.header('svix-signature'),
-        keyId: c.req.header('x-key-id'),
       },
       { jwksUrl: NS_JWKS_URL },
     )

@@ -126,20 +126,19 @@ app.post('/webhook', async (c) => {
   const svixId = c.req.header('svix-id')
   const svixTimestamp = c.req.header('svix-timestamp')
   const svixSignature = c.req.header('svix-signature')
-  const keyId = c.req.header('x-key-id')
-  // Preview the signature so we trace which entry/key arrived without logging the full sig.
+  // Preview the signature so we trace which entry arrived without logging the full sig.
   const svixSignaturePreview = svixSignature ? `${svixSignature.slice(0, 12)}...` : 'MISSING'
   console.log(
-    `${LOG_PREFIX} [webhook] verifying signature: svix-id=${svixId ?? 'MISSING'} svix-timestamp=${svixTimestamp ?? 'MISSING'} x-key-id=${keyId ?? 'MISSING'} svix-signature=${svixSignaturePreview} jwksUrl=${NS_JWKS_URL}`,
+    `${LOG_PREFIX} [webhook] verifying signature: svix-id=${svixId ?? 'MISSING'} svix-timestamp=${svixTimestamp ?? 'MISSING'} svix-signature=${svixSignaturePreview} jwksUrl=${NS_JWKS_URL}`,
   )
   const verifyStartedAt = Date.now()
   try {
-    await verifyWebhookSignature(rawBody, { svixId, svixTimestamp, svixSignature, keyId }, { jwksUrl: NS_JWKS_URL })
+    await verifyWebhookSignature(rawBody, { svixId, svixTimestamp, svixSignature }, { jwksUrl: NS_JWKS_URL })
   } catch (err) {
     console.error(`${LOG_PREFIX} [webhook] signature verification FAILED (${Date.now() - verifyStartedAt}ms):`, err)
     return c.json({ success: false, error: 'invalid signature' }, 401)
   }
-  console.log(`${LOG_PREFIX} [webhook] signature verification OK (${Date.now() - verifyStartedAt}ms) x-key-id=${keyId}`)
+  console.log(`${LOG_PREFIX} [webhook] signature verification OK (${Date.now() - verifyStartedAt}ms)`)
 
   let payload: ReturnType<typeof parseWebhookPayload>
   try {

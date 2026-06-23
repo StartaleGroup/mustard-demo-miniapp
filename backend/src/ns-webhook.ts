@@ -5,8 +5,8 @@
 //
 // This file is parse-only. Signature verification lives in the companion
 // drop-in `ns-webhook-verify.ts` (Svix Ed25519 over svix-id / svix-timestamp /
-// svix-signature headers + JWKS keyed by x-key-id). Copy both files together
-// and call verifyWebhookSignature() before parseWebhookPayload().
+// svix-signature headers, verified against any NS JWKS key). Copy both files
+// together and call verifyWebhookSignature() before parseWebhookPayload().
 //
 // The user address travels in the JSON body (`userAddress`) — the old
 // `x-user-address` header was removed.
