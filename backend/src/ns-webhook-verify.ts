@@ -107,7 +107,17 @@ export const verifyWebhookSignature = async (
   // "Was any signature created with any of the JWKS keys?" — try every signature
   // against every key. Ed25519: algorithm arg is null; the key implies the digest.
   const tryVerify = (keys: KeyObject[]): boolean =>
-    sigBytesList.some((sigBytes) => keys.some((key) => cryptoVerify(null, toSign, key, sigBytes)))
+    sigBytesList.some((sigBytes) =>
+      keys.some((key) => {
+        // crypto.verify throws on a malformed candidate (e.g. wrong signature
+        // length); treat that as a non-match so other sigs/keys are still tried.
+        try {
+          return cryptoVerify(null, toSign, key, sigBytes)
+        } catch {
+          return false
+        }
+      }),
+    )
 
   // Refetch the JWKS once if nothing matches the cached keys (NS may have just
   // rotated and published a new key) — only worthwhile if we were serving cache.
