@@ -1,7 +1,7 @@
 # Adding NS Notifications to a Miniapp (reuse guide)
 
 This guide shows how to add **Notification Server (NS)** notifications to any miniapp
-backend by reusing two drop-in files from this repo. **Mustard is the reference example** —
+backend by reusing two drop-in files from example repo. **Mustard is the reference example** —
 copy the files, wire them up, and you have a working webhook receiver with signature
 verification.
 
@@ -43,7 +43,7 @@ verifier reads no environment variables (you pass config in).
 
 | Var | Value | Notes |
 | --- | ----- | ----- |
-| `NS_JWKS_URL` | `https://<ns-host>/.well-known/jwks.json` | Ask the NS team. Required for signature verification. |
+| `NS_JWKS_URL` | `https://<ns-host>/.well-known/jwks.json` | Ask the Startale team. Required for signature verification. |
 
 The verifier module does **not** read `process.env` itself — you read `NS_JWKS_URL` in your
 app and pass it as `{ jwksUrl }`. This keeps the module portable across projects with
@@ -120,7 +120,7 @@ app.post('/webhook', async (c) => {
 
 When you want to deliver a notification, POST to the `notificationDetails.url` you stored
 (**use it verbatim** — do not derive or rewrite it) with the stored `token`. See
-[`NS_WEBHOOK.md`](./NS_WEBHOOK.md) §8 and the NS team for the send-side request contract.
+[`NS_WEBHOOK.md`](./NS_WEBHOOK.md) §8 and the Startale team for the send-side request contract.
 
 ---
 
@@ -151,7 +151,7 @@ tolerance window, plus `svix-id` dedupe, to harden against replay.
 
 ---
 
-## Ask the NS team for
+## Ask the Startale team for
 
 1. **`NS_JWKS_URL`** — the full JWKS endpoint URL.
 2. **Retry policy** on non-2xx responses (so you can size your idempotency window).

@@ -14,7 +14,7 @@ It ships with two drop-in helper files — `src/ns-webhook.ts` (parses and runti
 
 ## 1. What you get
 
-NS sends a POST to a webhook URL you register with the NS team. Each request looks like:
+NS sends a POST to a webhook URL you register with the miniapp manifest. Each request looks like:
 
 ```http
 POST /your-webhook-path HTTP/1.1
@@ -50,7 +50,7 @@ Four event types — two carry `notificationDetails`, two don't:
 
 `notificationDetails.url` is the fully-qualified NS send endpoint you POST to when delivering a push — use it verbatim, do not derive or rewrite it. (NS recently renamed this endpoint from `/notification` to `/miniapp/send-notification`; because you use the `url` verbatim, no code change is needed on your side.) `notificationDetails.token` is the per-user token to include in that POST. Store both together when you receive `miniapp_added` / `notifications_enabled`; either can change on a token rotation.
 
-Respond with **HTTP 200** on success. Anything else makes NS retry (confirm the exact retry policy with the NS team).
+Respond with **HTTP 200** on success. Anything else makes NS retry (confirm the exact retry policy with the Startale team).
 
 ---
 
@@ -78,7 +78,7 @@ where `rawBody` is the exact bytes of the JSON request body. Verify by:
 
 This is exactly what `src/ns-webhook-verify.ts`'s `verifyWebhookSignature()` does — it imports the JWKS key with `jose`'s `importJWK` and verifies with Node's built-in `crypto`. (Note: `jose` v6 `importJWK` returns a WebCrypto `CryptoKey`, which the helper converts via `KeyObject.from()` for `crypto.verify`.)
 
-What to ask the NS team:
+What to ask the Startale team:
 
 1. **`NS_JWKS_URL`** — the full URL of the NS JWKS endpoint (typically `https://<ns-host>/.well-known/jwks.json`). Required for signature verification.
 2. **Retry policy** on non-2xx responses (so you can size your idempotency window).
@@ -93,7 +93,7 @@ Copy `src/ns-webhook.ts` and `src/ns-webhook-verify.ts` from this repo into your
 - `ns-webhook-verify.ts` — Ed25519 verification using Node's built-in `crypto` plus `jose` (`importJWK`) for JWK import. The module is env-free; pass `{ jwksUrl }` in.
 
 ```bash
-NS_JWKS_URL=https://ns.example.com/.well-known/jwks.json   # ask the NS team; required for signature verification
+NS_JWKS_URL=https://ns.example.com/.well-known/jwks.json   # ask the Startale team; required for signature verification
 ```
 
 ---
@@ -131,7 +131,7 @@ async function handleNsWebhook(rawBody: string, headers: SvixHeaders) {
 }
 ```
 
-Hono example (matches this repo). A `401` signature gate runs before parsing; malformed bodies return `400`:
+Hono example (matches this example miniapp). A `401` signature gate runs before parsing; malformed bodies return `400`:
 
 ```ts
 app.post('/webhook', async (c) => {
@@ -209,7 +209,7 @@ type NsWebhookPayload =
 ## 6. Response contract
 
 - **200**: webhook accepted. Use any `2xx` body (most teams use `{ "success": true }`).
-- **non-200**: NS will retry per its retry policy. Use `400` for malformed-body failures and `401` for signature failures, so permanent errors don't loop forever once the policy is honored — but **confirm the retry semantics with the NS team** before depending on this.
+- **non-200**: NS will retry per its retry policy. Use `400` for malformed-body failures and `401` for signature failures, so permanent errors don't loop forever once the policy is honored — but **confirm the retry semantics with the Startale team** before depending on this.
 
 ---
 
@@ -227,7 +227,7 @@ type NsWebhookPayload =
 
 ## 8. What's NOT covered here
 
-- **Sending notifications.** This guide is webhook-side only (NS → you). The send side (you → NS to deliver a push) posts to `notificationDetails.url` — recently renamed to `/miniapp/send-notification` — with its own request contract; ask the NS team.
+- **Sending notifications.** This guide is webhook-side only (NS → you). The send side (you → NS to deliver a push) posts to `notificationDetails.url` 
 - **Idempotency / dedupe.** NS now sends a stable `svix-id` per message — dedupe on that if you care about retries. `(userAddress, event, token)` also works.
 - **Rate limits.** NS may rate-limit your send side; webhook receive side typically isn't rate-limited.
 - **Local testing without NS.** Stand up a local JWKS server and sign test webhooks with a matching Ed25519 private key (mirror the `${id}.${ts}.${body}` signing string, base64-standard encode the signature). Useful for exercising `verifyWebhookSignature` without a live NS; otherwise out of scope for this guide.
