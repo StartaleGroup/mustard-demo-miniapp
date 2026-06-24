@@ -34,6 +34,8 @@ svix-signature: v1a,<base64-std Ed25519 signature — see §2>
 }
 ```
 
+> **The webhook URL must be publicly reachable.** NS calls it over the internet and **cannot reach `localhost`**. For local testing, expose your backend through a tunnel such as ngrok (or any equivalent) and register that public `https://…/webhook` URL — see the [repo README](../README.md#public-url-for-testing-ngrok).
+
 Every event now carries:
 
 - **`senderId`** — always present; identifies the subscription's sender (miniapp).

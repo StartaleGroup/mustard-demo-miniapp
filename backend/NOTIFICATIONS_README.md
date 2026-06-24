@@ -116,6 +116,10 @@ app.post('/webhook', async (c) => {
 > (`${svix-id}.${svix-timestamp}.${rawBody}`); re-`JSON.stringify`-ing a parsed object would
 > change key order/whitespace and break verification.
 
+### Testing locally (ngrok)
+
+NS calls your `/webhook` endpoint over the public internet and **cannot reach `localhost`**. To test the webhook flow, expose your backend through a tunnel such as ngrok (or any equivalent) and register the resulting public `https://…/webhook` URL with the manifest / Startale team. The Mustard example ships an ngrok service ready to go — see the [repo README](../README.md#public-url-for-testing-ngrok).
+
 ### Sending a push
 
 When you want to deliver a notification, POST to the `notificationDetails.url` you stored
