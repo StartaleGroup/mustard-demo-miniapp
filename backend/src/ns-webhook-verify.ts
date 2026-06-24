@@ -65,7 +65,9 @@ const loadEd25519PublicKeys = async (jwksUrl: string, forceRefresh = false): Pro
       keys.push(KeyObject.from(cryptoKey))
     } catch (err) {
       // A single unimportable / non-Ed25519 key must not sink the whole batch.
-      console.log(`[ns-webhook-verify] skipping JWKS key kid="${jwk.kid}": ${(err as Error).message}`)
+      console.log(
+        `[ns-webhook-verify] skipping JWKS key kid="${jwk.kid}": ${err instanceof Error ? err.message : String(err)}`,
+      )
     }
   }
   if (keys.length === 0) throw new Error('ns-webhook-verify: JWKS has no usable Ed25519 keys')
