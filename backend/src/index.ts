@@ -148,8 +148,6 @@ app.post('/webhook', async (c) => {
     return c.json({ success: false, error: 'invalid payload' }, 400)
   }
 
-  // The user address now travels in the JSON body (the `x-user-address` header
-  // was removed). It may be absent if NS could not resolve it.
   const userAddress = payload.userAddress ? normalizeUserAddress(payload.userAddress) : undefined
   console.log(
     `${LOG_PREFIX} [webhook] parsed payload: event=${payload.event} senderId=${payload.senderId} userAddress=${userAddress ?? 'MISSING'}`,

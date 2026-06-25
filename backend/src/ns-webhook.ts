@@ -8,8 +8,7 @@
 // svix-signature headers, verified against any NS JWKS key). Copy both files
 // together and call verifyWebhookSignature() before parseWebhookPayload().
 //
-// The user address travels in the JSON body (`userAddress`) — the old
-// `x-user-address` header was removed.
+// The user address travels in the JSON body (`userAddress`) 
 
 export const NS_WEBHOOK_EVENTS = {
   MINIAPP_ADDED: 'miniapp_added',

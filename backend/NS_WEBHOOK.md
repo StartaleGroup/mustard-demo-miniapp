@@ -4,7 +4,7 @@ This guide explains how to wire a miniapp backend to the **Notification Server (
 
 It ships with two drop-in helper files — `src/ns-webhook.ts` (parses and runtime-narrows the webhook payload) and `src/ns-webhook-verify.ts` (verifies the Svix Ed25519 signature). Copy both into your backend, call `verifyWebhookSignature()` before `parseWebhookPayload()`, and you're done. For a step-by-step reuse guide see [`NOTIFICATIONS_README.md`](./NOTIFICATIONS_README.md).
 
-> **Status — signing scheme live.** NS signs every webhook with the **Svix** scheme (Ed25519 over `svix-id`/`svix-timestamp`/`svix-signature` headers) and carries the user address in the JSON body (the old `x-user-address` header was removed).
+> **Status — signing scheme live.** NS signs every webhook with the **Svix** scheme (Ed25519 over `svix-id`/`svix-timestamp`/`svix-signature` headers) and carries the user address in the JSON body.
 >
 > Signature verification is **implemented** in `src/ns-webhook-verify.ts` and enforced in `src/index.ts` — webhooks failing verification get a `401`. Set `NS_JWKS_URL` to enable it.
 >
@@ -39,7 +39,7 @@ svix-signature: v1a,<base64-std Ed25519 signature — see §2>
 Every event now carries:
 
 - **`senderId`** — always present; identifies the subscription's sender (miniapp).
-- **`userAddress`** — the user's smart-account address, **in the body** (the old `x-user-address` header has been removed). May be omitted if NS could not resolve it.
+- **`userAddress`** — the user's smart-account address, **in the body**. May be omitted if NS could not resolve it.
 
 Four event types — two carry `notificationDetails`, two don't:
 
@@ -186,8 +186,6 @@ Parses the JSON body and narrows it to a typed discriminated union. Throws on:
 ### `verifyWebhookSignature(rawBody, headers, { jwksUrl }): Promise<void>`
 
 Lives in `ns-webhook-verify.ts`. Verifies the Svix Ed25519 signature; **call it before `parseWebhookPayload`**. Resolves on success, throws on any failure (missing headers, JWKS fetch error, no usable keys, or no signature matching any JWKS key) — map a throw to a `401`. Reads no env vars; pass `jwksUrl` in.
-
-> The former `x-user-address` header decoder is gone for good — the address is in the body now (`payload.userAddress`).
 
 ### Types & constants
 
