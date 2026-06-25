@@ -1,7 +1,7 @@
 // NS (Notification Server) webhook helper — payload parsing & narrowing.
 //
 // Drop-in module for any miniapp backend that needs to receive NS subscription
-// webhooks. See ../NS_WEBHOOK.md and ../NOTIFICATIONS_README.md.
+// webhooks. See ../NOTIFICATIONS_README.md.
 //
 // This file is parse-only. Signature verification lives in the companion
 // drop-in `ns-webhook-verify.ts` (Svix Ed25519 over svix-id / svix-timestamp /

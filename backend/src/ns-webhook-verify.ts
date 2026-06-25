@@ -2,8 +2,7 @@
 //
 // Drop-in module for any miniapp backend receiving NS webhooks. Self-contained:
 // reads no env vars (pass jwksUrl in) and imports nothing app-specific. Pairs
-// with ns-webhook.ts (payload parsing). See ../NS_WEBHOOK.md and
-// ../NOTIFICATIONS_README.md.
+// with ns-webhook.ts (payload parsing). See ../NOTIFICATIONS_README.md.
 //
 // The scheme mirrors the Svix signer:
 //   toSign = `${svix-id}.${svix-timestamp}.${rawBody}`

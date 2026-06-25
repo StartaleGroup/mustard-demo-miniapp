@@ -110,7 +110,7 @@ async function sendNotification(
   return responseBody
 }
 
-// See backend/NS_WEBHOOK.md for the NS webhook contract.
+// See backend/NOTIFICATIONS_README.md for the NS webhook contract.
 app.post('/webhook', async (c) => {
   const rawBody = await c.req.text()
   console.log(`${LOG_PREFIX} [webhook] ===== incoming request =====`)
