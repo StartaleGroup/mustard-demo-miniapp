@@ -110,7 +110,7 @@ async function sendNotification(
   return responseBody
 }
 
-// See backend/NS_WEBHOOK.md for the NS webhook contract.
+// See backend/NOTIFICATIONS_README.md for the NS webhook contract.
 app.post('/webhook', async (c) => {
   const rawBody = await c.req.text()
   console.log(`${LOG_PREFIX} [webhook] ===== incoming request =====`)
@@ -148,8 +148,6 @@ app.post('/webhook', async (c) => {
     return c.json({ success: false, error: 'invalid payload' }, 400)
   }
 
-  // The user address now travels in the JSON body (the `x-user-address` header
-  // was removed). It may be absent if NS could not resolve it.
   const userAddress = payload.userAddress ? normalizeUserAddress(payload.userAddress) : undefined
   console.log(
     `${LOG_PREFIX} [webhook] parsed payload: event=${payload.event} senderId=${payload.senderId} userAddress=${userAddress ?? 'MISSING'}`,
