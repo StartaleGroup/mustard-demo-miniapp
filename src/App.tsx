@@ -1,6 +1,7 @@
 import { sdk } from "@farcaster/miniapp-sdk";
 import { useCallback, useEffect, useState } from "react";
 import { useConnect, useConnection, useConnectors, useDisconnect, useSignMessage } from "wagmi";
+import { CameraSection } from "./CameraSection";
 import { ContextSection } from "./ContextSection";
 import { MintGallery } from "./MintGallery";
 import { NotificationSection } from "./NotificationSection";
@@ -114,6 +115,9 @@ function ConnectMenu() {
             userAddress={address}
           />
         )}
+
+        <SectionDivider title="Camera" />
+        <CameraSection />
 
         <SectionDivider title="Message Signing" />
         <SignButton />
