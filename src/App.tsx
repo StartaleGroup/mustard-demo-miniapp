@@ -49,6 +49,8 @@ function ConnectMenu() {
   const [starPoints, setStarPoints] = useState<number | null>(null);
   const [username, setUsername] = useState<string>("");
   const [pfpUrl, setPfpUrl] = useState<string>("");
+  const [eoaWallets, setEoaWallets] = useState<string[]>([]);
+  const [language, setLanguage] = useState<string>("");
 
   const startaleConnector = connectors.find((c) => c.name.toLowerCase() === "startale");
 
@@ -57,11 +59,17 @@ function ConnectMenu() {
     (async () => {
       try {
         const context = (await sdk.context) as {
-          startale?: { starPoints?: number };
+          startale?: { starPoints?: number; eoaWallets?: string[]; language?: string };
           user?: { username?: string; pfpUrl?: string };
         };
         if (context?.startale?.starPoints !== undefined) {
           setStarPoints(context.startale.starPoints);
+        }
+        if (context?.startale?.eoaWallets) {
+          setEoaWallets(context.startale.eoaWallets);
+        }
+        if (context?.startale?.language) {
+          setLanguage(context.startale.language);
         }
         if (context?.user?.username) {
           setUsername(context.user.username);
@@ -101,7 +109,13 @@ function ConnectMenu() {
         <div style={{ marginBottom: "4px" }}>Chain: {chain?.name}</div>
 
         <SectionDivider title="Context" />
-        <ContextSection starPoints={starPoints} username={username} pfpUrl={pfpUrl} />
+        <ContextSection
+          starPoints={starPoints}
+          username={username}
+          pfpUrl={pfpUrl}
+          eoaWallets={eoaWallets}
+          language={language}
+        />
 
         <SectionDivider title="Minting" />
         {address && <MintGalleryWithNotifications address={address} />}
