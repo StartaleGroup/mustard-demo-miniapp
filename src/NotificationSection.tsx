@@ -1,5 +1,6 @@
 import { sdk } from "@farcaster/miniapp-sdk";
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "./Button";
 
 type EventEntry = { event: string; detail: string; timestamp: string };
 
@@ -9,12 +10,11 @@ const tokenPreview = (token: string) => `...${token.slice(-8)}`;
 
 interface NotificationSectionProps {
   appName: string;
-  accentColor: string;
   backendUrl: string;
   userAddress: string;
 }
 
-export function NotificationSection({ appName, accentColor, backendUrl, userAddress }: NotificationSectionProps) {
+export function NotificationSection({ appName, backendUrl, userAddress }: NotificationSectionProps) {
   const [hasToken, setHasToken] = useState(false);
   const [sendState, setSendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -176,23 +176,9 @@ export function NotificationSection({ appName, accentColor, backendUrl, userAddr
         </div>
       </div>
       <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={testDisabled}
-          style={{
-            padding: "8px 16px",
-            backgroundColor: sendState === "sent" ? "#16a34a" : accentColor,
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: testDisabled ? "not-allowed" : "pointer",
-            fontSize: "14px",
-            opacity: testDisabled ? 0.5 : 1,
-          }}
-        >
+        <Button onClick={handleSend} disabled={testDisabled}>
           {sendState === "sending" ? "Sending..." : sendState === "sent" ? "Sent!" : "Test Notification"}
-        </button>
+        </Button>
       </div>
       {error && <div style={{ color: "red", fontSize: "12px", marginTop: "8px" }}>{error}</div>}
     </div>

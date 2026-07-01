@@ -1,6 +1,7 @@
 import { sdk } from "@farcaster/miniapp-sdk";
 import { useCallback, useEffect, useState } from "react";
 import { useConnect, useConnection, useConnectors, useDisconnect, useSignMessage } from "wagmi";
+import { Button } from "./Button";
 import { CameraSection } from "./CameraSection";
 import { ContextSection } from "./ContextSection";
 import { MintGallery } from "./MintGallery";
@@ -86,22 +87,9 @@ function ConnectMenu() {
   if (status === "connected") {
     return (
       <div style={{ fontSize: "14px" }}>
-        <button
-          type="button"
-          onClick={() => disconnect()}
-          style={{
-            marginBottom: "4px",
-            padding: "8px 16px",
-            backgroundColor: "#dc2626",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontSize: "14px",
-          }}
-        >
+        <Button onClick={() => disconnect()} style={{ marginBottom: "4px" }}>
           Disconnect Wallet
-        </button>
+        </Button>
 
         <SectionDivider title="Wallet Info" />
         <div style={{ marginBottom: "8px", fontWeight: "500" }}>Connected smart account:</div>
@@ -121,14 +109,7 @@ function ConnectMenu() {
         {address && <MintGalleryWithNotifications address={address} />}
 
         <SectionDivider title="Notifications" />
-        {address && (
-          <NotificationSection
-            appName="Mustard"
-            accentColor="#92400e"
-            backendUrl={MUSTARD_BACKEND_URL}
-            userAddress={address}
-          />
-        )}
+        {address && <NotificationSection appName="Mustard" backendUrl={MUSTARD_BACKEND_URL} userAddress={address} />}
 
         <SectionDivider title="Camera" />
         <CameraSection />
@@ -145,26 +126,15 @@ function ConnectMenu() {
       <div style={{ marginBottom: "8px" }}>Chain: {chain?.name}</div>
 
       {startaleConnector ? (
-        <button
-          type="button"
+        <Button
           onClick={() => {
             connect({ connector: startaleConnector });
           }}
           disabled={status === "connecting"}
-          style={{
-            padding: "12px 24px",
-            backgroundColor: "#92400e",
-            color: "white",
-            border: "none",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontWeight: "500",
-            marginBottom: "12px",
-          }}
+          style={{ marginBottom: "12px" }}
         >
           {status === "connecting" ? "Connecting..." : "Connect with Startale"}
-        </button>
+        </Button>
       ) : (
         <div style={{ color: "#92400e", fontSize: "12px", marginBottom: "12px" }}>Startale connector not found</div>
       )}
@@ -200,9 +170,9 @@ function SignButton() {
 
   return (
     <div>
-      <button type="button" onClick={() => signMessage({ message: "hello world" })} disabled={isPending}>
+      <Button onClick={() => signMessage({ message: "hello world" })} disabled={isPending}>
         {isPending ? "Signing..." : "Sign message"}
-      </button>
+      </Button>
       {data && (
         <div style={{ marginTop: "12px" }}>
           <div style={{ marginBottom: "8px", fontWeight: "500", fontSize: "14px" }}>Signature</div>
