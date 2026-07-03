@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { soneium } from "wagmi/chains";
+import { Button } from "./Button";
 
 const NFT_CONTRACT = "0x7a181921b8976cE4a4997B134225d2E74E67797B" as const;
 const NFT_ABI = [
@@ -138,9 +139,9 @@ export function MintGallery({
   return (
     <div style={{ marginBottom: "16px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-        <button type="button" onClick={handleMint} disabled={isPending || isConfirming || !canMint}>
+        <Button onClick={handleMint} disabled={isPending || isConfirming || !canMint}>
           {isPending || isConfirming ? "Minting..." : !canMint ? `Wait ${formatTime(timeRemaining)}` : "Mint NFT"}
-        </button>
+        </Button>
         <span style={{ fontSize: "13px", fontWeight: "500" }}>{totalNfts} minted</span>
       </div>
 

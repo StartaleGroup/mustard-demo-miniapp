@@ -1,5 +1,6 @@
 import { sdk } from "@farcaster/miniapp-sdk";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "./Button";
 
 const LOG_PREFIX = "[MUSTARD][camera]";
 const ACCENT = "#92400e";
@@ -121,24 +122,9 @@ export function CameraSection() {
 
   return (
     <div style={{ fontSize: "14px" }}>
-      <button
-        type="button"
-        onClick={isLive ? stop : start}
-        disabled={disabled}
-        style={{
-          padding: "8px 16px",
-          backgroundColor: isLive ? "#dc2626" : ACCENT,
-          color: "white",
-          border: "none",
-          borderRadius: "4px",
-          cursor: disabled ? "not-allowed" : "pointer",
-          fontSize: "14px",
-          opacity: disabled ? 0.5 : 1,
-          marginBottom: "12px",
-        }}
-      >
+      <Button onClick={isLive ? stop : start} disabled={disabled} style={{ marginBottom: "12px" }}>
         {status === "starting" ? "Starting..." : isLive ? "Stop camera & mic" : "Start camera & mic"}
-      </button>
+      </Button>
 
       {supported === false && (
         <div style={{ color: ACCENT, fontSize: "12px", marginBottom: "8px" }}>Camera not supported by host</div>
