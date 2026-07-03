@@ -6,8 +6,9 @@
     "iconUrl": "https://crave-nephew-germless.ngrok-free.dev/icon.webp",
     "homeUrl": "https://crave-nephew-germless.ngrok-free.dev/",
     "imageUrl": "https://crave-nephew-germless.ngrok-free.dev/preview.webp",
+    "heroImageUrl": "https://crave-nephew-germless.ngrok-free.dev/hero.webp",
     "buttonTitle": "Launch Mustard",
-    "splashImageUrl": "https://crave-nephew-germless.ngrok-free.dev/preview.webp",
+    "splashImageUrl": "https://crave-nephew-germless.ngrok-free.dev/splash.webp",
     "splashBackgroundColor": "#fbbf24",
     "webhookUrl": "https://crave-nephew-germless.ngrok-free.dev/webhook",
     "primaryCategory": "entertainment",
@@ -15,7 +16,7 @@
   },
     "startale": {
     "manifestVersion": "2.3",
-    "featuredBannerImageUrl": "https://crave-nephew-germless.ngrok-free.dev/preview.webp",
+    "featuredBannerImageUrl": "https://crave-nephew-germless.ngrok-free.dev/banner.webp",
     "projectWebsite": "https://crave-nephew-germless.ngrok-free.dev/",
     "socialLinks": {
       "twitter": "https://x.com/yourapp",
