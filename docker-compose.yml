@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - VITE_IPFS_GATEWAY=${VITE_IPFS_GATEWAY}
     ports:
       - "5174:5174"
     environment:

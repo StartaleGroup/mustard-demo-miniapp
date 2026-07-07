@@ -29,6 +29,10 @@ const NFT_ABI = [
 ] as const;
 
 const COOLDOWN_MS = 20000;
+const IPFS_GATEWAY = import.meta.env.VITE_IPFS_GATEWAY || "https://ipfs.io/ipfs/";
+
+const resolveIpfsUrl = (uri: string) =>
+  uri.startsWith("ipfs://") ? `${IPFS_GATEWAY}${uri.slice("ipfs://".length)}` : uri;
 
 interface MintGalleryProps {
   address: `0x${string}`;
@@ -83,6 +87,26 @@ export function MintGallery({
       enabled: balance !== undefined && balance >= 1n,
     },
   });
+
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!tokenURI) return;
+    let cancelled = false;
+    fetch(resolveIpfsUrl(tokenURI))
+      .then((res) => res.json())
+      .then((metadata: { image?: string }) => {
+        if (!cancelled && metadata.image) {
+          setImageUrl(resolveIpfsUrl(metadata.image));
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load NFT metadata:", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tokenURI]);
 
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
@@ -168,9 +192,9 @@ export function MintGallery({
               border: `2px solid ${index < nftCount ? "transparent" : emptySlotBorder}`,
             }}
           >
-            {index < nftCount && tokenURI && (
+            {index < nftCount && imageUrl && (
               <img
-                src={tokenURI}
+                src={imageUrl}
                 alt={`NFT ${index + 1}`}
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />

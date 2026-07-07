@@ -11,6 +11,10 @@ COPY src ./src
 # An empty public/ directory must exist in source for this COPY to succeed.
 COPY public ./public
 
+# VITE_ vars are inlined at build time, so the gateway must be passed as a build arg.
+ARG VITE_IPFS_GATEWAY
+ENV VITE_IPFS_GATEWAY=$VITE_IPFS_GATEWAY
+
 # Skip tsc in Docker (vite handles TS via esbuild) — avoids type-check failures
 # from slightly different package versions in Docker vs local.
 RUN npx vite build
