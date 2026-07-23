@@ -14,6 +14,7 @@ import { CameraSection } from "./CameraSection";
 import { ContextSection } from "./ContextSection";
 import { MintGallery } from "./MintGallery";
 import { NotificationSection } from "./NotificationSection";
+import { UrlParamsSection } from "./UrlParamsSection";
 
 const MUSTARD_BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "";
 const MUSTARD_LOG_PREFIX = "[MUSTARD][mustard]";
@@ -112,6 +113,9 @@ function ConnectMenu() {
           eoaWallets={eoaWallets}
           language={language}
         />
+
+        <SectionDivider title="URL Params" />
+        <UrlParamsSection />
 
         <SectionDivider title="Minting" />
         {address && <MintGalleryWithNotifications address={address} />}
